@@ -9,19 +9,55 @@ import torchvision
 import warnings
 import random
 
-from torch_geometric.data import (Dataset, Data, download_url,
-                                  extract_tar)
 
+class BaseDataset(torch.utils.data.Dataset):
+	"""Base class for a dataset."""
 
-class CSSDataset(Dataset):
-	"""CSS dataset."""
-	def __init__(self, path, split='train', transform=None):
-		super(CSSDataset, self).__init__()
+	def __init__(self):
+		super(BaseDataset, self).__init__()
 		self.imgs = []
 		self.test_queries = []
+
+	def get_loader(self,
+					batch_size,
+					shuffle=False,
+					drop_last=False,
+					num_workers=0):
+		return torch.utils.data.DataLoader(
+			self,
+			batch_size=batch_size,
+			shuffle=shuffle,
+			num_workers=num_workers,
+			drop_last=drop_last,
+			collate_fn=lambda i: i)
+
+	def get_test_queries(self):
+		return self.test_queries
+
+	def get_all_texts(self):
+		raise NotImplementedError
+
+	def __getitem__(self, idx):
+		return self.generate_random_query_target()
+
+	def generate_random_query_target(self):
+		raise NotImplementedError
+
+	# def get_img(self, idx, raw_img=False):
+	# 	raise NotImplementedError
+
+	def get_scene(self, idx, raw_img=False):
+		raise NotImplementedError
+
+class CSSDataset(BaseDataset):
+	"""CSS dataset."""
+
+	def __init__(self, path, split='train', transform=None):
+		super(CSSDataset, self).__init__()
+
 		self.scene_path = path + '/scenes'
 		self.img_path = path + '/images'
-		
+
 		self.transform = transform
 		self.split = split
 		self.data = np.load(path + '/css_toy_dataset_novel2_small.dup.npy', allow_pickle=True, encoding="latin1").item()
@@ -47,22 +83,6 @@ class CSSDataset(Dataset):
 				self.imgid2modtarget[f] += [(i, t)]
 
 		self.generate_test_queries_()
-
-	def get_test_queries(self):
-		return self.test_queries
-	
-	def get_loader(self,
-					batch_size,
-					shuffle=False,
-					drop_last=False,
-					num_workers=0):
-		return torch.utils.data.DataLoader(
-			self,
-			batch_size=batch_size,
-			shuffle=shuffle,
-			num_workers=num_workers,
-			drop_last=drop_last,
-			collate_fn=lambda i: i)
 
 	def generate_test_queries_(self):
 		test_queries = []
@@ -93,7 +113,6 @@ class CSSDataset(Dataset):
 		# mod = self.mods[modid]
 		return self.last_from, modid, new_to
 
-
 	def generate_random_query_target(self):
 		try:
 			if len(self.last_mod) < 2:
@@ -109,80 +128,7 @@ class CSSDataset(Dataset):
 		out['target_img_id'] = img2id
 		out['target_img_data'] = self.get_scene(img2id)
 		out['mod'] = {'id': modid, 'str': self.mods[modid]['to_str']}
-
-		x=[]
-		for instance in out['source_img_data']['objects']:
-			x.append(instance)
-		torch_x=torch.Tensor(x)
-
-		out['target_objects']=torch_x
-		left_adjmat=out['source_img_data']['relations']['left']
-		right_adjmat=out['source_img_data']['relations']['right']
-		front_adjmat=out['source_img_data']['relations']['front']
-		behind_adjmat=out['source_img_data']['relations']['behind']
-
-		l1=[]
-		l2=[]
-		edge_attr=[]
-		left_rel=np.zeros(4)
-		left_rel[0]=1
-
-		right_rel=np.zeros(4)
-		right_rel[1]=1
-
-		front_rel=np.zeros(4)
-		front_rel[2]=1
-
-		behind_rel=np.zeros(4)
-		behind_rel[3]=1
-		for i,row in enumerate(left_adjmat):
-			for j,val in enumerate(row):
-				if left_adjmat[i][j]==1:
-					l1.append(i)
-					l2.append(j)
-					edge_attr.append(left_rel)
-		
-		for i,row in enumerate(right_adjmat):
-			for j,val in enumerate(row):
-				if right_adjmat[i][j]==1:
-					l1.append(i)
-					l2.append(j)
-					edge_attr.append(right_rel)
-
-		
-		for i,row in enumerate(front_adjmat):
-			for j,val in enumerate(row):
-				if front_adjmat[i][j]==1:
-					l1.append(i)
-					l2.append(j)
-					edge_attr.append(front_rel)
-		
-		for i,row in enumerate(behind_adjmat):
-			for j,val in enumerate(row):
-				if behind_adjmat[i][j]==1:
-					l1.append(i)
-					l2.append(j)
-					edge_attr.append(behind_rel)
-
-		
-		sz=len(l1)
-		edge_index=np.zeros((2,sz))
-		for i,val in enumerate(l1):
-			edge_index[0,i]=val
-		for i,val in enumerate(l2):
-			edge_index[1,i]=val
-		edge_index_tensor=torch.LongTensor(edge_index)
-		edge_attr_tensor=torch.Tensor(edge_attr)
-
-		data_obj=Data(x=torch_x,edge_index=edge_index_tensor,edge_attr=edge_attr_tensor)
-		print(data_obj)
-		data, slices = self.collate([data_obj])
-		print("data=",data)
-		print("slices=",slices)
 		return out
-
-	def __getitem__(self, idx):
-		return self.generate_random_query_target()
 
 	def __len__(self):
 		return len(self.imgs)
@@ -212,6 +158,7 @@ class CSSDataset(Dataset):
 		# list of all possible attributes
 		# TODO : include position in attributes
 		# TODO : see if 'cylinder' needs to be replaced by 'triangle'. Because query text uses triangle in place of cylinder
+		attribute_types = ['shape', 'size', 'color', 'material']
 		attributes = ["small", "large", "gray", "blue", "brown", "yellow", "red", "green", "purple", "cyan", "rubber", "metal", "cube", "sphere", "cylinder"]
 
 		# creating a dict to map each attribute to its index in attributes list
@@ -223,24 +170,41 @@ class CSSDataset(Dataset):
 
 		for obj in scene['objects']:
 			obj_rep = [0]*len(attributes)
-			obj_rep[attr2idx[obj['shape']]] = 1
-			obj_rep[attr2idx[obj['size']]] = 1
-			obj_rep[attr2idx[obj['color']]] = 1
-			obj_rep[attr2idx[obj['material']]] = 1
-
+			
+			for attr_type in attribute_types:
+				obj_rep[attr2idx[obj[attr_type]]] = 1	
+			
 			object_nodes_in_scene.append(obj_rep)
+
+		# converting to np array
+		object_nodes_in_scene = torch.Tensor(object_nodes_in_scene)
 
 		# creating adj matrices for each relation type
 		relation_types = ['left', 'right', 'front', 'behind']
 
-		adj_matrices = { relation : np.zeros((number_of_objects_in_scene,number_of_objects_in_scene)) for relation in relation_types }
 
+		# creating edge_index and edge_type
+		# edge_index --> Graph connectivity in COO format with shape [2, num_edges]
+		# edge_type -->  one-dimensional relation type/index for each edge in edge_index
+		# 				 Edge types : left= 0, right= 1, front= 2, behind= 3	
+		
+		from_nodes = []
+		to_nodes = []
+		edge_type = []
+		
 		for obj_index in range(number_of_objects_in_scene):
 			for relation in relation_types:
 				for related_obj in scene['relationships'][relation][obj_index]:
-					adj_matrices[relation][obj_index,related_obj] = 1
+					from_nodes.append(obj_index)
+					to_nodes.append(related_obj)
+					edge_type.append( relation_types.index(relation))
+		
 
-		out['objects'] = np.array(object_nodes_in_scene)
-		out['relations'] = adj_matrices
+		edge_index = torch.LongTensor([from_nodes, to_nodes])
+		edge_type = torch.LongTensor(edge_type)
+		
+		out['objects'] = object_nodes_in_scene
+		out['edge_index'] = edge_index
+		out['edge_type'] = edge_type
 
 		return out
