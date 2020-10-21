@@ -9,7 +9,7 @@ import torchvision
 import warnings
 import random
 
-
+lis=[('test', 9832), ('train', 1565), ('test', 4132), ('train', 2881), ('train', 1161), ('train', 9313), ('test', 17076), ('train', 4363), ('train', 1221), ('test', 7235), ('test', 12701), ('train', 2446), ('train', 9837), ('test', 11441), ('test', 1349), ('train', 3023), ('train', 14329), ('test', 3918), ('train', 11780), ('train', 4729), ('train', 15256), ('train', 6460), ('test', 5471), ('test', 12318), ('train', 2821), ('test', 11197), ('test', 1100), ('test', 14355), ('train', 3155), ('train', 7540), ('test', 18320), ('train', 6668), ('train', 16116), ('test', 5346), ('test', 1275), ('train', 1087), ('test', 6223), ('train', 10547), ('test', 13383)]
 class BaseDataset(torch.utils.data.Dataset):
 	"""Base class for a dataset."""
 
@@ -114,13 +114,27 @@ class CSSDataset(BaseDataset):
 		return self.last_from, modid, new_to
 
 	def generate_random_query_target(self):
-		try:
-			if len(self.last_mod) < 2:
-				img1id, modid, img2id = self.get_2nd_training_query()
-			else:
+		while(True):
+			try:
+				if len(self.last_mod) < 2:
+					img1id, modid, img2id = self.get_2nd_training_query()
+				else:
+					img1id, modid, img2id = self.get_1st_training_query()
+			except:
 				img1id, modid, img2id = self.get_1st_training_query()
-		except:
-			img1id, modid, img2id = self.get_1st_training_query()
+			
+			if self.split=='train':
+				tup1=('train',img1id)
+				if tup1 not in lis:
+					tup2=('train',img2id)
+					if tup2 not in lis:
+						break		
+			elif self.split=='test':
+				tup1=('test',img1id)
+				if tup1 not in lis:
+					tup2=('test',img2id)
+					if tup2 not in lis:
+						break	
 
 		out = {}
 		out['source_img_id'] = img1id
