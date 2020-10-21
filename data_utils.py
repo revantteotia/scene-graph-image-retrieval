@@ -19,7 +19,10 @@ def src_mod_trgt_dict_list_to_graph_batch(dict_list):
     src_graphs_list = []
     trgt_graphs_list = []
     mod_strings_list = []
-    
+
+    # print("Debug : src images list =", [ data['source_img_id'] for data in dict_list ])
+    # print("Debug : trgt images list =", [ data['target_img_id'] for data in dict_list ])
+
     for data_dict in dict_list:
         src_graph_data = Geo_Data(x=data_dict['source_img_data']['objects'], edge_index=data_dict['source_img_data']['edge_index'], edge_type=data_dict['source_img_data']['edge_type'])
         trgt_graph_data = Geo_Data(x=data_dict['target_img_data']['objects'], edge_index=data_dict['target_img_data']['edge_index'], edge_type=data_dict['target_img_data']['edge_type'])
