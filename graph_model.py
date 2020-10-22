@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from torch_geometric.nn import RGCNConv, FastRGCNConv
 from torch_geometric.nn import global_mean_pool
 
-INIT_NODE_FEATURES_DIM = 15
+INIT_NODE_FEATURES_DIM = 24 # 15 without coordinates
 HIDDEN_LAYER_DIM = 512
 NUM_RELATIONS = 4
 
