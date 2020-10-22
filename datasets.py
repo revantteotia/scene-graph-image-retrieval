@@ -183,10 +183,18 @@ class CSSDataset(BaseDataset):
 		# creating initial node representation for each object in scene
 		# making multi-hot vectors of objects in src scene
 		object_nodes_in_scene = []
-
+		positions=["topleft","topcenter","topright","left","center","right","bottomleft","bottomcenter","bottomright"]
+		
 		for obj in scene['objects']:
-			obj_rep = [0]*len(attributes)
-			
+			obj_rep = [0]*(len(attributes)+len(positions))
+			lis_pos=obj['pixel_coords']
+			x_coord=lis_pos[0]
+			y_coord=lis_pos[1]
+			x_coord_index=int((x_coord/224)*3)
+			y_coord_index=int((y_coord/224)*3)
+			ind=3*x_coord_index+y_coord_index
+			obj_rep[len(attributes)+ind]=1
+
 			for attr_type in attribute_types:
 				obj_rep[attr2idx[obj[attr_type]]] = 1	
 			
