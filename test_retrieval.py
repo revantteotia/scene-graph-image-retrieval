@@ -26,7 +26,7 @@ device = torch.device("cuda" if use_cuda else "cpu")
 empty_images_list=[('test', 9832), ('train', 1565), ('test', 4132), ('train', 2881), ('train', 1161), ('train', 9313), ('test', 17076), ('train', 4363), ('train', 1221), ('test', 7235), ('test', 12701), ('train', 2446), ('train', 9837), ('test', 11441), ('test', 1349), ('train', 3023), ('train', 14329), ('test', 3918), ('train', 11780), ('train', 4729), ('train', 15256), ('train', 6460), ('test', 5471), ('test', 12318), ('train', 2821), ('test', 11197), ('test', 1100), ('test', 14355), ('train', 3155), ('train', 7540), ('test', 18320), ('train', 6668), ('train', 16116), ('test', 5346), ('test', 1275), ('train', 1087), ('test', 6223), ('train', 10547), ('test', 13383)]
 
 
-def test(opt, model, testset):
+def test(opt, model, testset, split='test'):
     """Tests a model over the given testset."""
     model.eval()
     test_queries = testset.get_test_queries()
@@ -42,7 +42,7 @@ def test(opt, model, testset):
         for t in tqdm(test_queries):
 
             # if src or target in empty list then continue
-            if (('test',t['source_img_id']) in empty_images_list) or (('test',t['target_caption']) in empty_images_list):
+            if ((split,t['source_img_id']) in empty_images_list) or ((split,t['target_caption']) in empty_images_list):
                 continue
 
             imgs += [testset.get_scene(t['source_img_id'])] # list of graph dicts
@@ -71,7 +71,7 @@ def test(opt, model, testset):
         for i in tqdm(range(len(testset.imgs))):
 
             # if src or target in empty list then continue
-            if ('test',i) in empty_images_list:
+            if (split,i) in empty_images_list:
                 continue
 
             imgs += [testset.get_scene(i)]
@@ -101,7 +101,7 @@ def test(opt, model, testset):
             item = testset[i]
 
             # if src or target in empty list then continue
-            if (('test',item['source_img_id']) in empty_images_list) or (('test',item['target_caption']) in empty_images_list):
+            if ((split,item['source_img_id']) in empty_images_list) or ((split,item['target_caption']) in empty_images_list):
                 continue            
 
             imgs += [item['source_img_data']]

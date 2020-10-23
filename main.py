@@ -134,7 +134,7 @@ def train_loop(opt, logger, trainset, testset, model, optimizer):
         if epoch % 3 == 1:
             tests = []
             for name, dataset in [('train', trainset), ('test', testset)]:
-                t = test_retrieval.test(opt, model, dataset)
+                t = test_retrieval.test(opt, model, dataset, name)
                 tests += [(name + ' ' + metric_name, metric_value)
                         for metric_name, metric_value in t]
             for metric_name, metric_value in tests:
@@ -186,7 +186,7 @@ def train_loop(opt, logger, trainset, testset, model, optimizer):
                 for loss_name, loss_weight, loss_value in losses
             ])
 
-            print("Total Loss :", total_loss)
+            # print("Total Loss :", total_loss) # debug
             assert not torch.isnan(total_loss)
             losses += [('total training loss', None, total_loss)]
 
