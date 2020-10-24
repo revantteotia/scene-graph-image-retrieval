@@ -24,8 +24,8 @@ def src_mod_trgt_dict_list_to_graph_batch(dict_list):
     # print("Debug : trgt images list =", [ data['target_img_id'] for data in dict_list ])
 
     for data_dict in dict_list:
-        src_graph_dict_list.append(data_dict['source_img_data'])
-        trgt_graph_dict_list.append(data_dict['target_img_data'])
+        src_graph_dict_list.append(data_dict['source_scene_data'])
+        trgt_graph_dict_list.append(data_dict['target_scene_data'])
         mod_strings_list.append(data_dict['mod']['str'])
 
     src_graph_batched = graph_dict_list_to_graph_batch(src_graph_dict_list)
