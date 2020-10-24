@@ -45,8 +45,8 @@ class BaseDataset(torch.utils.data.Dataset):
 	def generate_random_query_target(self):
 		raise NotImplementedError
 
-	# def get_img(self, idx, raw_img=False):
-	# 	raise NotImplementedError
+	def get_img(self, idx, raw_img=False):
+		raise NotImplementedError
 
 	def get_scene(self, idx, raw_img=False):
 		raise NotImplementedError
@@ -140,9 +140,11 @@ class CSSDataset(BaseDataset):
 
 		out = {}
 		out['source_img_id'] = img1id
-		out['source_img_data'] = self.get_scene(img1id)
+		out['source_scene_data'] = self.get_scene(img1id)
+		out['source_img_data'] = self.get_img(img1id)
 		out['target_img_id'] = img2id
-		out['target_img_data'] = self.get_scene(img2id)
+		out['target_scene_data'] = self.get_scene(img2id)
+		out['target_img_data'] = self.get_img(img2id)
 		out['mod'] = {'id': modid, 'str': self.mods[modid]['to_str']}
 		return out
 
@@ -171,9 +173,6 @@ class CSSDataset(BaseDataset):
 
 		number_of_objects_in_scene = len(scene['objects'])
 
-		# list of all possible attributes
-		# TODO : include position in attributes
-		# TODO : see if 'cylinder' needs to be replaced by 'triangle'. Because query text uses triangle in place of cylinder
 		attribute_types = ['shape', 'size', 'color', 'material']
 		attributes = ["small", "large", "gray", "blue", "brown", "yellow", "red", "green", "purple", "cyan", "rubber", "metal", "cube", "sphere", "cylinder"]
 
@@ -206,12 +205,6 @@ class CSSDataset(BaseDataset):
 		# creating adj matrices for each relation type
 		relation_types = ['left', 'right', 'front', 'behind']
 
-
-		# creating edge_index and edge_type
-		# edge_index --> Graph connectivity in COO format with shape [2, num_edges]
-		# edge_type -->  one-dimensional relation type/index for each edge in edge_index
-		# 				 Edge types : left= 0, right= 1, front= 2, behind= 3	
-		
 		from_nodes = []
 		to_nodes = []
 		edge_type = []
@@ -232,3 +225,56 @@ class CSSDataset(BaseDataset):
 		out['edge_type'] = edge_type
 
 		return out
+
+
+	def get_img(self, idx, raw_img=False, get_2d=False):
+		def generate_2d_image(objects):
+			img = np.ones((64, 64, 3))
+			colortext2values = {
+				'gray': [87, 87, 87],
+				'red': [244, 35, 35],
+				'blue': [42, 75, 215],
+				'green': [29, 205, 20],
+				'brown': [129, 74, 25],
+				'purple': [129, 38, 192],
+				'cyan': [41, 208, 208],
+				'yellow': [255, 238, 51]
+			}
+			for obj in objects:
+				s = 4.0
+				if obj['size'] == 'large':
+					s *= 2
+				c = [0, 0, 0]
+				for j in range(3):
+					c[j] = 1.0 * colortext2values[obj['color']][j] / 255.0
+				y = obj['pos'][0] * img.shape[0]
+				x = obj['pos'][1] * img.shape[1]
+				if obj['shape'] == 'rectangle':
+					img[int(y - s):int(y + s), int(x - s):int(x + s), :] = c
+				if obj['shape'] == 'circle':
+					for y0 in range(int(y - s), int(y + s) + 1):
+						x0 = x + (abs(y0 - y) - s)
+						x1 = 2 * x - x0
+						img[y0, int(x0):int(x1), :] = c
+				if obj['shape'] == 'triangle':
+					for y0 in range(int(y - s), int(y + s)):
+						x0 = x + (y0 - y + s) / 2
+						x1 = 2 * x - x0
+						x0, x1 = min(x0, x1), max(x0, x1)
+						img[y0, int(x0):int(x1), :] = c
+			return img
+
+		if self.img_path is None or get_2d:
+			img = generate_2d_image(self.imgs[idx]['objects'])
+		else:
+			img_path = self.img_path + ('/css_%s_%06d.png' % (self.split, int(idx)))
+			with open(img_path, 'rb') as f:
+				img = PIL.Image.open(f)
+				img = img.convert('RGB')
+
+		if raw_img:
+			return img
+		if self.transform:
+			img = self.transform(img)
+		return img
+
