@@ -2,6 +2,7 @@ import datasets
 import numpy as np
 import data_utils
 import img_text_composition_models
+import img_graph_text_composition
 from tensorboardX import SummaryWriter
 import test_retrieval
 import torch
@@ -17,7 +18,7 @@ import time
 use_cuda = torch.cuda.is_available()
 device = torch.device("cuda" if use_cuda else "cpu")
 
-INIT_NODE_FEATURES_DIM = 15
+INIT_NODE_FEATURES_DIM = 24
 HIDDEN_LAYER_DIM = 128
 NUM_RELATIONS = 4
 
@@ -66,22 +67,14 @@ def create_model_and_optimizer(opt, texts):
     """Builds the model and related optimizer."""
 
     print ('Creating model and optimizer for', opt.model)
-    if opt.model == 'imgonly':
-        model = img_text_composition_models.SimpleModelImageOnly(
-            texts, embed_dim=opt.embed_dim)
-    elif opt.model == 'textonly':
-        model = img_text_composition_models.SimpleModelTextOnly(
-            texts, embed_dim=opt.embed_dim)
-    elif opt.model == 'concat':
-        model = img_text_composition_models.Concat(texts, embed_dim=opt.embed_dim)
+    if opt.model == 'concat':
+        model = img_graph_text_composition.ConcatImgGraph(texts, embed_dim=opt.embed_dim)
     elif opt.model == 'tirg':
-        model = img_text_composition_models.TIRG(texts, embed_dim=opt.embed_dim)
-    elif opt.model == 'tirg_lastconv':
-        model = img_text_composition_models.TIRGLastConv(
-            texts, embed_dim=opt.embed_dim)
+        model = img_graph_text_composition.TIRGImgGraph(texts, embed_dim=opt.embed_dim)
+    
     else:
         print ('Invalid model', opt.model)
-        print ('available: imgonly, textonly, concat, tirg or tirg_lastconv')
+        print ('available:  concat, tirg ')
         sys.exit()
     
     model = model.to(device)
@@ -163,18 +156,27 @@ def train_loop(opt, logger, trainset, testset, model, optimizer):
             # to batch the graphs
             src_graph_batched, mod_strings_list, trgt_graph_batched = data_utils.src_mod_trgt_dict_list_to_graph_batch(data)
 
-            img1 = src_graph_batched.to(device)
+            graph1 = src_graph_batched.to(device)
             mods = mod_strings_list
-            img2 = trgt_graph_batched.to(device)
+            graph2 = trgt_graph_batched.to(device)
 
+
+            img1 = np.stack([d['source_img_data'] for d in data])
+            img1 = torch.from_numpy(img1).float()
+            img1 = torch.autograd.Variable(img1).cuda()
+            img2 = np.stack([d['target_img_data'] for d in data])
+            img2 = torch.from_numpy(img2).float()
+            img2 = torch.autograd.Variable(img2).cuda()
+            img1 = img1.permute(0, 3, 1, 2)
+            img2 = img2.permute(0,3,1,2)
             # compute loss
             losses = []
             if opt.loss == 'soft_triplet':
                 loss_value = model.compute_loss(
-                    img1, mods, img2, soft_triplet_loss=True)
+                    img1,graph1, mods,img2, graph2, soft_triplet_loss=True)
             elif opt.loss == 'batch_based_classification':
                 loss_value = model.compute_loss(
-                    img1, mods, img2, soft_triplet_loss=False)
+                    img1,graph1, mods, img2,graph2, soft_triplet_loss=False)
             else:
                 print ('Invalid loss function', opt.loss)
                 sys.exit()
@@ -229,7 +231,6 @@ def main():
 
     train_loop(opt, logger, trainset, testset, model, optimizer)
     logger.close()
-
 
 if __name__ == '__main__':
     main()
